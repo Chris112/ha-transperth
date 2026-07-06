@@ -43,7 +43,8 @@
       "no_trains_running": "No trains are currently running on this line — try again while services are active."
     },
     "abort": {
-      "already_configured": "This place is already configured."
+      "already_configured": "This place is already configured.",
+      "cannot_connect": "Could not reach Transperth."
     }
   },
   "options": {

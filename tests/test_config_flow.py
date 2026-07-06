@@ -108,6 +108,19 @@ async def test_train_flow_no_trains_running(
     assert result["errors"] == {"base": "no_trains_running"}
 
 
+async def test_train_flow_unknown_station_shows_invalid_station(
+    hass: HomeAssistant, mock_client: MagicMock
+) -> None:
+    mock_client.get_train_departures.side_effect = InvalidStopError("nope")
+    result = await _start_train_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_LINE: "Midland Line", CONF_STATION: "Maylands Stn"},
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_station"}
+
+
 async def test_train_flow_duplicate_aborts(
     hass: HomeAssistant, mock_client: MagicMock, train_entry: MockConfigEntry
 ) -> None:
