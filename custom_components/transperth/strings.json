@@ -20,12 +20,27 @@
           "routes": "Routes to track (optional)",
           "walk_minutes": "Walk time to the stop (minutes)"
         }
+      },
+      "train": {
+        "title": "Train station",
+        "data": {
+          "line": "Line",
+          "station": "Station"
+        }
+      },
+      "train_tracking": {
+        "title": "Track destinations from this station",
+        "data": {
+          "destinations": "Destinations to track (optional)"
+        }
       }
     },
     "error": {
       "invalid_stop": "Transperth doesn't recognise that stop code.",
+      "invalid_station": "Transperth doesn't recognise that station.",
       "cannot_connect": "Could not reach Transperth.",
-      "rate_limited": "Transperth is rate limiting — wait a few minutes."
+      "rate_limited": "Transperth is rate limiting — wait a few minutes.",
+      "no_trains_running": "No trains are currently running on this line — try again while services are active."
     },
     "abort": {
       "already_configured": "This place is already configured."

@@ -7,7 +7,10 @@ from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.transperth.const import (
+    CONF_DESTINATIONS,
+    CONF_LINE,
     CONF_ROUTES,
+    CONF_STATION,
     CONF_STOP_CODE,
     CONF_WALK_MINUTES,
     DOMAIN,
@@ -60,6 +63,59 @@ async def test_bus_flow_duplicate_aborts(
     result = await _start_bus_flow(hass)
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {CONF_STOP_CODE: "12627"}
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+
+
+async def _start_train_flow(hass: HomeAssistant):
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    return await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "train"}
+    )
+
+
+async def test_train_flow_happy_path(
+    hass: HomeAssistant, mock_client: MagicMock
+) -> None:
+    result = await _start_train_flow(hass)
+    assert result["type"] is FlowResultType.FORM and result["step_id"] == "train"
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_LINE: "Midland Line", CONF_STATION: "Maylands Stn"},
+    )
+    assert result["step_id"] == "train_tracking"
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_DESTINATIONS: ["Perth"]}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "Maylands Stn (Midland Line)"
+    assert result["options"] == {CONF_DESTINATIONS: ["Perth"]}
+
+
+async def test_train_flow_no_trains_running(
+    hass: HomeAssistant, mock_client: MagicMock
+) -> None:
+    mock_client.get_train_departures.return_value = ()
+    result = await _start_train_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_LINE: "Midland Line", CONF_STATION: "Maylands Stn"},
+    )
+    assert result["type"] is FlowResultType.FORM and result["step_id"] == "train"
+    assert result["errors"] == {"base": "no_trains_running"}
+
+
+async def test_train_flow_duplicate_aborts(
+    hass: HomeAssistant, mock_client: MagicMock, train_entry: MockConfigEntry
+) -> None:
+    train_entry.add_to_hass(hass)
+    result = await _start_train_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_LINE: "Midland Line", CONF_STATION: "Maylands Stn"},
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
