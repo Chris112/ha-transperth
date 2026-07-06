@@ -12,7 +12,13 @@ from aiotransperth import (
     TransperthClient,
     TransperthError,
 )
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
+from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     NumberSelector,
@@ -52,6 +58,11 @@ class TransperthConfigFlow(ConfigFlow, domain=DOMAIN):
 
     def _client(self) -> TransperthClient:
         return TransperthClient(session=async_get_clientsession(self.hass))
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> TransperthOptionsFlow:
+        return TransperthOptionsFlow()
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -180,3 +191,76 @@ class TransperthConfigFlow(ConfigFlow, domain=DOMAIN):
             }
         )
         return self.async_show_form(step_id="train_tracking", data_schema=schema)
+
+
+class TransperthOptionsFlow(OptionsFlow):
+    """Edit tracked routes/destinations and walk time."""
+
+    def _client(self) -> TransperthClient:
+        return TransperthClient(session=async_get_clientsession(self.hass))
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if self.config_entry.data[CONF_MODE] == MODE_BUS:
+            return await self.async_step_bus()
+        return await self.async_step_train()
+
+    async def async_step_bus(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if user_input is not None:
+            return self.async_create_entry(
+                data={
+                    CONF_ROUTES: user_input.get(CONF_ROUTES, []),
+                    CONF_WALK_MINUTES: int(user_input.get(CONF_WALK_MINUTES, 0)),
+                }
+            )
+        current = self.config_entry.options
+        try:
+            timetable = await self._client().get_stop_timetable(
+                self.config_entry.data[CONF_STOP_CODE]
+            )
+            observed = {d.route for d in timetable.departures}
+        except TransperthError:
+            observed = set()
+        options = sorted(observed | set(current.get(CONF_ROUTES, [])))
+        schema = vol.Schema(
+            {
+                vol.Optional(
+                    CONF_ROUTES, default=current.get(CONF_ROUTES, [])
+                ): SelectSelector(SelectSelectorConfig(options=options, multiple=True)),
+                vol.Optional(
+                    CONF_WALK_MINUTES, default=current.get(CONF_WALK_MINUTES, 0)
+                ): NumberSelector(
+                    NumberSelectorConfig(min=0, max=60, mode=NumberSelectorMode.BOX)
+                ),
+            }
+        )
+        return self.async_show_form(step_id="bus", data_schema=schema)
+
+    async def async_step_train(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if user_input is not None:
+            return self.async_create_entry(
+                data={CONF_DESTINATIONS: user_input.get(CONF_DESTINATIONS, [])}
+            )
+        current = self.config_entry.options
+        try:
+            departures = await self._client().get_train_departures(
+                self.config_entry.data[CONF_LINE],
+                self.config_entry.data[CONF_STATION],
+            )
+            observed = {d.destination for d in departures}
+        except TransperthError:
+            observed = set()
+        options = sorted(observed | set(current.get(CONF_DESTINATIONS, [])))
+        schema = vol.Schema(
+            {
+                vol.Optional(
+                    CONF_DESTINATIONS, default=current.get(CONF_DESTINATIONS, [])
+                ): SelectSelector(SelectSelectorConfig(options=options, multiple=True))
+            }
+        )
+        return self.async_show_form(step_id="train", data_schema=schema)

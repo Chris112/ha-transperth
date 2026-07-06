@@ -45,5 +45,22 @@
     "abort": {
       "already_configured": "This place is already configured."
     }
+  },
+  "options": {
+    "step": {
+      "bus": {
+        "title": "Track routes at this stop",
+        "data": {
+          "routes": "Routes to track",
+          "walk_minutes": "Walk time to the stop (minutes)"
+        }
+      },
+      "train": {
+        "title": "Track destinations from this station",
+        "data": {
+          "destinations": "Destinations to track"
+        }
+      }
+    }
   }
 }
