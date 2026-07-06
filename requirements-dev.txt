@@ -1,0 +1,5 @@
+# aiotransperth from local checkout until the PyPI release exists;
+# CI swaps this for the git URL.
+-e ../aiotransperth
+pytest-homeassistant-custom-component
+ruff

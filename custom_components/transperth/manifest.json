@@ -1,0 +1,12 @@
+{
+  "domain": "transperth",
+  "name": "Transperth",
+  "codeowners": ["@cjwebb90"],
+  "config_flow": true,
+  "documentation": "https://github.com/cjwebb90/ha-transperth",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/cjwebb90/ha-transperth/issues",
+  "requirements": ["aiotransperth==0.1.0"],
+  "version": "0.1.0"
+}
