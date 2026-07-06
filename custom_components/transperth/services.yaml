@@ -1,0 +1,76 @@
+get_bus_departures:
+  name: Get bus departures
+  description: Upcoming departures at any bus stop (doesn't need to be configured).
+  fields:
+    stop_code:
+      description: Transperth stop code (the number on the stop sign).
+      example: "12627"
+      required: true
+      selector:
+        text:
+    at:
+      description: >-
+        Reference time. 'HH:MM' means the next occurrence (rolls to tomorrow
+        if past); 'YYYY-MM-DD HH:MM' is an exact moment. Defaults to now.
+      example: "08:00"
+      selector:
+        text:
+
+get_bus_schedule:
+  name: Get bus schedule
+  description: Upcoming times a specific route stops at a stop.
+  fields:
+    stop_code:
+      description: Transperth stop code.
+      example: "12627"
+      required: true
+      selector:
+        text:
+    bus_number:
+      description: Bus route number.
+      example: "414"
+      required: true
+      selector:
+        text:
+    at:
+      description: >-
+        Reference time. 'HH:MM' means the next occurrence (rolls to tomorrow
+        if past); 'YYYY-MM-DD HH:MM' is an exact moment. Defaults to now.
+      example: "08:00"
+      selector:
+        text:
+
+get_bus_stops:
+  name: Get bus stops
+  description: Every stop on a route's next upcoming trip.
+  fields:
+    bus_number:
+      description: Bus route number.
+      example: "414"
+      required: true
+      selector:
+        text:
+    at:
+      description: >-
+        Reference time. 'HH:MM' means the next occurrence (rolls to tomorrow
+        if past); 'YYYY-MM-DD HH:MM' is an exact moment. Defaults to now.
+      example: "08:00"
+      selector:
+        text:
+
+get_train_departures:
+  name: Get train departures
+  description: Live departures for any station on a line (doesn't need to be configured).
+  fields:
+    line:
+      description: Line display name, e.g. "Midland Line".
+      example: "Midland Line"
+      required: true
+      selector:
+        text:
+    station:
+      description: Station display name, e.g. "Maylands Stn".
+      example: "Maylands Stn"
+      required: true
+      selector:
+        text:
