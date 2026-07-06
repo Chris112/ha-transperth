@@ -8,18 +8,17 @@ from aiotransperth import (
     RateLimitError,
     StopTimetable,
     TrainDeparture,
-    TransperthClient,
     TransperthError,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
 )
 from homeassistant.util import dt as dt_util
 
+from .api import async_shared_client
 from .const import (
     BUS_SCAN_INTERVAL,
     CONF_LINE,
@@ -45,7 +44,7 @@ class _BaseCoordinator[T](DataUpdateCoordinator[T]):
             name=entry.title,
             update_interval=interval,
         )
-        self.client = TransperthClient(session=async_get_clientsession(hass))
+        self.client = async_shared_client(hass)
         self.rate_limited = False
         self.last_success: datetime | None = None
 

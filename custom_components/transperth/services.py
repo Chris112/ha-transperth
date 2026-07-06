@@ -9,7 +9,6 @@ from aiotransperth import (
     PERTH_TZ,
     InvalidStopError,
     RateLimitError,
-    TransperthClient,
     TransperthError,
 )
 from homeassistant.core import (
@@ -20,8 +19,8 @@ from homeassistant.core import (
     callback,
 )
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
+from .api import async_shared_client
 from .const import DOMAIN
 
 
@@ -60,13 +59,11 @@ def _reference(call: ServiceCall) -> datetime:
 
 @callback
 def async_setup_services(hass: HomeAssistant) -> None:
-    def client() -> TransperthClient:
-        return TransperthClient(session=async_get_clientsession(hass))
-
-    async def get_bus_departures(call: ServiceCall) -> ServiceResponse:
+    async def _stop_departures(call: ServiceCall) -> dict:
         when = _reference(call)
+        client = async_shared_client(hass)
         try:
-            tt = await client().get_stop_timetable(call.data["stop_code"], when=when)
+            tt = await client.get_stop_timetable(call.data["stop_code"], when=when)
         except InvalidStopError as err:
             raise ServiceValidationError(str(err)) from err
         except RateLimitError as err:
@@ -87,9 +84,11 @@ def async_setup_services(hass: HomeAssistant) -> None:
             ],
         }
 
+    async def get_bus_departures(call: ServiceCall) -> ServiceResponse:
+        return await _stop_departures(call)
+
     async def get_bus_schedule(call: ServiceCall) -> ServiceResponse:
-        base = await get_bus_departures(call)
-        assert base is not None
+        base = await _stop_departures(call)
         route = call.data["bus_number"]
         return {
             "stop_name": base["stop_name"],
@@ -99,13 +98,14 @@ def async_setup_services(hass: HomeAssistant) -> None:
 
     async def get_bus_stops(call: ServiceCall) -> ServiceResponse:
         when = _reference(call)
+        client = async_shared_client(hass)
         try:
-            trips = await client().get_route_trips(call.data["bus_number"], when=when)
+            trips = await client.get_route_trips(call.data["bus_number"], when=when)
             if not trips:
                 raise ServiceValidationError(
                     f"No upcoming trips for bus {call.data['bus_number']}"
                 )
-            stops = await client().get_trip_stops(trips[0])
+            stops = await client.get_trip_stops(trips[0])
         except RateLimitError as err:
             raise HomeAssistantError(f"Rate limited: {err}") from err
         except TransperthError as err:
@@ -127,7 +127,7 @@ def async_setup_services(hass: HomeAssistant) -> None:
 
     async def get_train_departures(call: ServiceCall) -> ServiceResponse:
         try:
-            deps = await client().get_train_departures(
+            deps = await async_shared_client(hass).get_train_departures(
                 call.data["line"], call.data["station"]
             )
         except InvalidStopError as err:

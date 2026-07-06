@@ -9,10 +9,12 @@ from aiotransperth import (
     PERTH_TZ,
     BusDeparture,
     LiveStatus,
+    RouteTrip,
     Stop,
     StopTimetable,
     TrainDeparture,
     TrainStation,
+    TripStop,
 )
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -96,6 +98,43 @@ TRAINS = (
         trip_id=2,
     ),
 )
+ROUTE_TRIPS = (
+    RouteTrip(
+        route="414",
+        trip_key="PerthRestricted:1",
+        route_uid="PerthRestricted:SWA",
+        direction="outbound",
+        date=_dt(8, 0),
+        start_time=_dt(8, 5),
+        finish_time=_dt(8, 40),
+        start_location="Stirling Stn Stand B",
+        finish_location="Glendalough Stn",
+    ),
+)
+TRIP_STOPS = (
+    TripStop(
+        code="29720",
+        name="Stirling Stn Stand B",
+        time="08:05",
+        can_board=True,
+        can_alight=False,
+        is_timing_point=True,
+        zone="1",
+        latitude=None,
+        longitude=None,
+    ),
+    TripStop(
+        code="12627",
+        name="Main St After Royal St",
+        time="08:12",
+        can_board=True,
+        can_alight=True,
+        is_timing_point=False,
+        zone="1",
+        latitude=None,
+        longitude=None,
+    ),
+)
 LINES = ("Fremantle Line", "Midland Line")
 STATIONS = (
     TrainStation(id="130", name="Maylands Stn"),
@@ -113,22 +152,14 @@ def mock_client() -> Generator[MagicMock]:
     client = MagicMock()
     client.get_stop_timetable = AsyncMock(return_value=TIMETABLE)
     client.validate_stop = AsyncMock(return_value=STOP)
+    client.get_route_trips = AsyncMock(return_value=ROUTE_TRIPS)
+    client.get_trip_stops = AsyncMock(return_value=TRIP_STOPS)
     client.get_train_departures = AsyncMock(return_value=TRAINS)
     client.get_train_lines = AsyncMock(return_value=LINES)
     client.get_train_stations = AsyncMock(return_value=STATIONS)
-    with (
-        patch(
-            "custom_components.transperth.coordinator.TransperthClient",
-            return_value=client,
-        ),
-        patch(
-            "custom_components.transperth.config_flow.TransperthClient",
-            return_value=client,
-        ),
-        patch(
-            "custom_components.transperth.services.TransperthClient",
-            return_value=client,
-        ),
+    with patch(
+        "custom_components.transperth.api.TransperthClient",
+        return_value=client,
     ):
         yield client
 

@@ -9,7 +9,6 @@ from aiotransperth import (
     InvalidStopError,
     RateLimitError,
     Stop,
-    TransperthClient,
     TransperthError,
 )
 from homeassistant.config_entries import (
@@ -19,7 +18,6 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.core import callback
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
@@ -29,6 +27,7 @@ from homeassistant.helpers.selector import (
 )
 from homeassistant.util import slugify
 
+from .api import async_shared_client
 from .const import (
     CONF_DESTINATIONS,
     CONF_LINE,
@@ -56,9 +55,6 @@ class TransperthConfigFlow(ConfigFlow, domain=DOMAIN):
         self._station: str | None = None
         self._destinations: list[str] = []
 
-    def _client(self) -> TransperthClient:
-        return TransperthClient(session=async_get_clientsession(self.hass))
-
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> TransperthOptionsFlow:
@@ -76,7 +72,9 @@ class TransperthConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             code = str(user_input[CONF_STOP_CODE]).strip()
             try:
-                timetable = await self._client().get_stop_timetable(code)
+                timetable = await async_shared_client(self.hass).get_stop_timetable(
+                    code
+                )
             except InvalidStopError:
                 errors["base"] = "invalid_stop"
             except RateLimitError:
@@ -128,7 +126,7 @@ class TransperthConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         errors: dict[str, str] = {}
-        client = self._client()
+        client = async_shared_client(self.hass)
         if user_input is not None:
             self._line = user_input[CONF_LINE]
             self._station = user_input[CONF_STATION]
@@ -140,6 +138,8 @@ class TransperthConfigFlow(ConfigFlow, domain=DOMAIN):
                 departures = await client.get_train_departures(
                     self._line, self._station
                 )
+            except InvalidStopError:
+                errors["base"] = "invalid_station"
             except RateLimitError:
                 errors["base"] = "rate_limited"
             except TransperthError:
@@ -196,9 +196,6 @@ class TransperthConfigFlow(ConfigFlow, domain=DOMAIN):
 class TransperthOptionsFlow(OptionsFlow):
     """Edit tracked routes/destinations and walk time."""
 
-    def _client(self) -> TransperthClient:
-        return TransperthClient(session=async_get_clientsession(self.hass))
-
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -218,7 +215,7 @@ class TransperthOptionsFlow(OptionsFlow):
             )
         current = self.config_entry.options
         try:
-            timetable = await self._client().get_stop_timetable(
+            timetable = await async_shared_client(self.hass).get_stop_timetable(
                 self.config_entry.data[CONF_STOP_CODE]
             )
             observed = {d.route for d in timetable.departures}
@@ -248,7 +245,7 @@ class TransperthOptionsFlow(OptionsFlow):
             )
         current = self.config_entry.options
         try:
-            departures = await self._client().get_train_departures(
+            departures = await async_shared_client(self.hass).get_train_departures(
                 self.config_entry.data[CONF_LINE],
                 self.config_entry.data[CONF_STATION],
             )
