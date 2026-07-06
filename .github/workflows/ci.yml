@@ -14,6 +14,8 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
+          # Remove once the home-assistant/brands PR is merged (ROADMAP Phase 3).
+          ignore: brands
 
   test:
     runs-on: ubuntu-latest
