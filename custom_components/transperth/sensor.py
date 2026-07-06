@@ -5,14 +5,21 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from aiotransperth import BusDeparture
+from aiotransperth import BusDeparture, TrainDeparture
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.util import slugify
 
 from . import TransperthConfigEntry
-from .const import BOARD_SIZE, CONF_MODE, CONF_ROUTES, MODE_BUS
-from .coordinator import BusCoordinator
+from .const import (
+    BOARD_SIZE,
+    CONF_DESTINATIONS,
+    CONF_MODE,
+    CONF_ROUTES,
+    MODE_BUS,
+)
+from .coordinator import BusCoordinator, TrainCoordinator
 from .entity import TransperthEntity
 
 PARALLEL_UPDATES = 0
@@ -32,6 +39,14 @@ async def async_setup_entry(
         entities.extend(
             BusRouteSensor(coordinator, route)
             for route in entry.options.get(CONF_ROUTES, [])
+        )
+    else:
+        assert isinstance(coordinator, TrainCoordinator)
+        entities.append(TrainNextDepartureSensor(coordinator))
+        entities.append(TrainDepartureBoardSensor(coordinator))
+        entities.extend(
+            TrainDestinationSensor(coordinator, dest)
+            for dest in entry.options.get(CONF_DESTINATIONS, [])
         )
     async_add_entities(entities)
 
@@ -78,6 +93,83 @@ class BusRouteSensor(BusNextDepartureSensor):
             if dep.route == self._route:
                 return dep
         return None
+
+
+def _train_attrs(dep: TrainDeparture) -> dict[str, Any]:
+    return {
+        "destination": dep.destination,
+        "platform": dep.platform,
+        "cars": dep.cars,
+        "delay_minutes": dep.delay_minutes,
+        "is_live": dep.live.is_live,
+    }
+
+
+class TrainNextDepartureSensor(TransperthEntity, SensorEntity):
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_name = "Next departure"
+
+    def __init__(self, coordinator: TrainCoordinator) -> None:
+        super().__init__(coordinator, "next_departure")
+
+    def _departure(self) -> TrainDeparture | None:
+        departures = self.coordinator.data
+        return departures[0] if departures else None
+
+    @property
+    def native_value(self) -> datetime | None:
+        dep = self._departure()
+        return (dep.estimated or dep.scheduled) if dep else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        dep = self._departure()
+        return _train_attrs(dep) if dep else None
+
+
+class TrainDestinationSensor(TrainNextDepartureSensor):
+    def __init__(self, coordinator: TrainCoordinator, destination: str) -> None:
+        TransperthEntity.__init__(
+            self, coordinator, f"dest_{slugify(destination)}_next"
+        )
+        self._destination = destination
+        self._attr_name = f"Next train to {destination}"
+
+    def _departure(self) -> TrainDeparture | None:
+        for dep in self.coordinator.data:
+            if dep.destination == self._destination:
+                return dep
+        return None
+
+
+class TrainDepartureBoardSensor(TransperthEntity, SensorEntity):
+    _attr_name = "Departures"
+
+    def __init__(self, coordinator: TrainCoordinator) -> None:
+        super().__init__(coordinator, "departures")
+
+    @property
+    def native_value(self) -> str | None:
+        departures = self.coordinator.data
+        if not departures:
+            return None
+        dep = departures[0]
+        return f"{(dep.estimated or dep.scheduled):%H:%M}"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {
+            "departures": [
+                {
+                    "destination": dep.destination,
+                    "platform": dep.platform,
+                    "time": f"{(dep.estimated or dep.scheduled):%H:%M}",
+                    "delay_minutes": dep.delay_minutes,
+                    "is_live": dep.live.is_live,
+                }
+                for dep in self.coordinator.data[:BOARD_SIZE]
+            ]
+        }
 
 
 class BusDepartureBoardSensor(TransperthEntity, SensorEntity):

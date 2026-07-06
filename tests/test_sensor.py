@@ -45,3 +45,20 @@ async def test_departure_board(
         "delay_minutes": None,
         "is_live": False,
     }
+
+
+async def test_train_next_and_destination_sensors(
+    hass: HomeAssistant, mock_client: MagicMock, train_entry: MockConfigEntry
+) -> None:
+    await _setup(hass, train_entry)
+    nxt = hass.states.get("sensor.maylands_stn_midland_line_next_departure")
+    assert nxt is not None and nxt.state == "2026-07-07T00:10:00+00:00"
+    assert nxt.attributes["platform"] == "1"
+    assert nxt.attributes["cars"] == 4
+    to_perth = hass.states.get(
+        "sensor.maylands_stn_midland_line_next_train_to_perth"
+    )
+    assert to_perth is not None and to_perth.state == "2026-07-07T00:10:00+00:00"
+    board = hass.states.get("sensor.maylands_stn_midland_line_departures")
+    assert board is not None and board.state == "08:10"
+    assert board.attributes["departures"][1]["destination"] == "Midland"
