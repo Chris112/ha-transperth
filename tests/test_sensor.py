@@ -62,3 +62,20 @@ async def test_train_next_and_destination_sensors(
     board = hass.states.get("sensor.maylands_stn_midland_line_departures")
     assert board is not None and board.state == "08:10"
     assert board.attributes["departures"][1]["destination"] == "Midland"
+
+
+async def test_status_sensor_reports_rate_limit(
+    hass: HomeAssistant, mock_client: MagicMock, bus_entry: MockConfigEntry
+) -> None:
+    from aiotransperth import RateLimitError
+
+    await _setup(hass, bus_entry)
+    entity_id = "sensor.main_st_after_royal_st_12627_status"
+    state = hass.states.get(entity_id)
+    assert state is not None and state.attributes["rate_limited"] is False
+
+    mock_client.get_stop_timetable.side_effect = RateLimitError("429")
+    await bus_entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+    state = hass.states.get(entity_id)
+    assert state.attributes["rate_limited"] is True

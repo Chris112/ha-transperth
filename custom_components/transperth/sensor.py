@@ -7,6 +7,7 @@ from typing import Any
 
 from aiotransperth import BusDeparture, TrainDeparture
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import slugify
@@ -48,7 +49,31 @@ async def async_setup_entry(
             TrainDestinationSensor(coordinator, dest)
             for dest in entry.options.get(CONF_DESTINATIONS, [])
         )
+    entities.append(StatusSensor(coordinator))
     async_add_entities(entities)
+
+
+class StatusSensor(TransperthEntity, SensorEntity):
+    """Last successful update + rate-limit flag; reports even while the API is down."""
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_name = "Status"
+
+    def __init__(self, coordinator: BusCoordinator | TrainCoordinator) -> None:
+        super().__init__(coordinator, "status")
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    @property
+    def native_value(self) -> datetime | None:
+        return self.coordinator.last_success
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {"rate_limited": self.coordinator.rate_limited}
 
 
 def _bus_attrs(dep: BusDeparture) -> dict[str, Any]:
