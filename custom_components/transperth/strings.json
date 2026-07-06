@@ -1,0 +1,34 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add a Transperth place",
+        "menu_options": {
+          "bus": "Bus stop",
+          "train": "Train station"
+        }
+      },
+      "bus": {
+        "title": "Bus stop",
+        "data": {
+          "stop_code": "Stop code (the number on the stop sign)"
+        }
+      },
+      "bus_tracking": {
+        "title": "Track routes at this stop",
+        "data": {
+          "routes": "Routes to track (optional)",
+          "walk_minutes": "Walk time to the stop (minutes)"
+        }
+      }
+    },
+    "error": {
+      "invalid_stop": "Transperth doesn't recognise that stop code.",
+      "cannot_connect": "Could not reach Transperth.",
+      "rate_limited": "Transperth is rate limiting — wait a few minutes."
+    },
+    "abort": {
+      "already_configured": "This place is already configured."
+    }
+  }
+}
