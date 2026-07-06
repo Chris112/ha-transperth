@@ -13,7 +13,7 @@ from homeassistant.helpers.event import async_track_point_in_time
 from homeassistant.util import dt as dt_util
 
 from . import TransperthConfigEntry
-from .const import CONF_MODE, CONF_ROUTES, CONF_WALK_MINUTES, MODE_BUS
+from .const import CONF_ROUTES, CONF_WALK_MINUTES
 from .coordinator import BusCoordinator
 from .entity import TransperthEntity
 
@@ -25,10 +25,9 @@ async def async_setup_entry(
     entry: TransperthConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    if entry.data[CONF_MODE] != MODE_BUS:
-        return
     coordinator = entry.runtime_data
-    assert isinstance(coordinator, BusCoordinator)
+    if not isinstance(coordinator, BusCoordinator):
+        return
     walk = int(entry.options.get(CONF_WALK_MINUTES, 0))
     async_add_entities(
         TimeToLeaveBinarySensor(coordinator, route, walk)

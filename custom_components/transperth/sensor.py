@@ -13,13 +13,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import slugify
 
 from . import TransperthConfigEntry
-from .const import (
-    BOARD_SIZE,
-    CONF_DESTINATIONS,
-    CONF_MODE,
-    CONF_ROUTES,
-    MODE_BUS,
-)
+from .const import BOARD_SIZE, CONF_DESTINATIONS, CONF_ROUTES
 from .coordinator import BusCoordinator, TrainCoordinator
 from .entity import TransperthEntity
 
@@ -33,8 +27,7 @@ async def async_setup_entry(
 ) -> None:
     coordinator = entry.runtime_data
     entities: list[SensorEntity] = []
-    if entry.data[CONF_MODE] == MODE_BUS:
-        assert isinstance(coordinator, BusCoordinator)
+    if isinstance(coordinator, BusCoordinator):
         entities.append(BusNextDepartureSensor(coordinator))
         entities.append(BusDepartureBoardSensor(coordinator))
         entities.extend(
@@ -42,7 +35,6 @@ async def async_setup_entry(
             for route in entry.options.get(CONF_ROUTES, [])
         )
     else:
-        assert isinstance(coordinator, TrainCoordinator)
         entities.append(TrainNextDepartureSensor(coordinator))
         entities.append(TrainDepartureBoardSensor(coordinator))
         entities.extend(
@@ -87,10 +79,15 @@ def _bus_attrs(dep: BusDeparture) -> dict[str, Any]:
 
 class BusNextDepartureSensor(TransperthEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.TIMESTAMP
-    _attr_name = "Next departure"
 
-    def __init__(self, coordinator: BusCoordinator) -> None:
-        super().__init__(coordinator, "next_departure")
+    def __init__(
+        self,
+        coordinator: BusCoordinator,
+        key: str = "next_departure",
+        name: str = "Next departure",
+    ) -> None:
+        super().__init__(coordinator, key)
+        self._attr_name = name
 
     def _departure(self) -> BusDeparture | None:
         departures = self.coordinator.data.departures
@@ -109,9 +106,8 @@ class BusNextDepartureSensor(TransperthEntity, SensorEntity):
 
 class BusRouteSensor(BusNextDepartureSensor):
     def __init__(self, coordinator: BusCoordinator, route: str) -> None:
-        TransperthEntity.__init__(self, coordinator, f"route_{route}_next")
+        super().__init__(coordinator, f"route_{route}_next", f"Next {route}")
         self._route = route
-        self._attr_name = f"Next {route}"
 
     def _departure(self) -> BusDeparture | None:
         for dep in self.coordinator.data.departures:
@@ -132,10 +128,15 @@ def _train_attrs(dep: TrainDeparture) -> dict[str, Any]:
 
 class TrainNextDepartureSensor(TransperthEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.TIMESTAMP
-    _attr_name = "Next departure"
 
-    def __init__(self, coordinator: TrainCoordinator) -> None:
-        super().__init__(coordinator, "next_departure")
+    def __init__(
+        self,
+        coordinator: TrainCoordinator,
+        key: str = "next_departure",
+        name: str = "Next departure",
+    ) -> None:
+        super().__init__(coordinator, key)
+        self._attr_name = name
 
     def _departure(self) -> TrainDeparture | None:
         departures = self.coordinator.data
@@ -154,11 +155,12 @@ class TrainNextDepartureSensor(TransperthEntity, SensorEntity):
 
 class TrainDestinationSensor(TrainNextDepartureSensor):
     def __init__(self, coordinator: TrainCoordinator, destination: str) -> None:
-        TransperthEntity.__init__(
-            self, coordinator, f"dest_{slugify(destination)}_next"
+        super().__init__(
+            coordinator,
+            f"dest_{slugify(destination)}_next",
+            f"Next train to {destination}",
         )
         self._destination = destination
-        self._attr_name = f"Next train to {destination}"
 
     def _departure(self) -> TrainDeparture | None:
         for dep in self.coordinator.data:
