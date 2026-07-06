@@ -52,17 +52,17 @@ road (typically the imminent departure).
 ```yaml
 automation:
   - alias: "Leave for the 414"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id: binary_sensor.main_st_after_royal_st_12627_time_to_leave_for_the_414
         to: "on"
-    condition:
+    conditions:
       - condition: time
         after: "07:00:00"
         before: "09:00:00"
         weekday: [mon, tue, wed, thu, fri]
-    action:
-      - service: notify.mobile_app_your_phone
+    actions:
+      - action: notify.mobile_app_your_phone
         data:
           title: "Leave now"
           message: >
