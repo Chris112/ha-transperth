@@ -56,6 +56,43 @@ async def test_get_train_departures_service(
     assert response["departures"][0]["destination"] == "Perth"
 
 
+async def test_get_bus_stops_service(
+    hass: HomeAssistant, mock_client: MagicMock
+) -> None:
+    await _setup_domain(hass)
+    response = await hass.services.async_call(
+        DOMAIN,
+        "get_bus_stops",
+        {"bus_number": "414"},
+        blocking=True,
+        return_response=True,
+    )
+    assert response["bus_number"] == "414"
+    assert response["direction"] == "outbound"
+    assert response["stops"][0] == {
+        "code": "29720",
+        "name": "Stirling Stn Stand B",
+        "time": "08:05",
+        "can_board": True,
+        "can_alight": False,
+    }
+
+
+async def test_get_bus_stops_no_trips_raises_validation_error(
+    hass: HomeAssistant, mock_client: MagicMock
+) -> None:
+    await _setup_domain(hass)
+    mock_client.get_route_trips.return_value = ()
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN,
+            "get_bus_stops",
+            {"bus_number": "999"},
+            blocking=True,
+            return_response=True,
+        )
+
+
 async def test_invalid_stop_raises_service_validation_error(
     hass: HomeAssistant, mock_client: MagicMock
 ) -> None:
