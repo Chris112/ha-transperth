@@ -15,13 +15,14 @@ Where this project is and what's left, in order. Companion library:
 
 ## Phase 1 — Release (blocks everything below)
 
-- [ ] PyPI: add a **trusted publisher** for `Chris112/aiotransperth`
+- [x] PyPI: add a **trusted publisher** for `Chris112/aiotransperth`
       (pypi.org → publishing → workflow `release.yml`, environment `pypi`)
       and create the `pypi` environment in the repo settings.
-- [ ] Publish `aiotransperth` **v0.1.0** via a GitHub release — the
+- [x] Publish `aiotransperth` **v0.1.0** via a GitHub release — the
       integration's `manifest.json` pins `aiotransperth==0.1.0` from PyPI,
-      so HA can't install requirements until this exists.
-- [ ] Confirm CI green on both repos.
+      so HA can't install requirements until this exists. *(Live on PyPI
+      2026-07-07; aiotransperth repo is now public.)*
+- [x] Confirm CI green on both repos.
 - [ ] Tag/release `ha-transperth` **v0.1.0** (HACS installs from releases).
 
 ## Phase 2 — Real-world validation (own install)
