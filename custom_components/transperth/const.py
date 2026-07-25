@@ -25,6 +25,12 @@ CONF_DESTINATIONS = "destinations"
 
 BUS_SCAN_INTERVAL = timedelta(seconds=120)
 TRAIN_SCAN_INTERVAL = timedelta(seconds=60)
+
+# Entries boarding at one station share a fetch for this long. Just under the
+# poll interval, so each station is still refetched every cycle while any
+# number of journeys from it cost a single request. Bus stops need no
+# equivalent: a stop's unique ID already forbids a second entry for it.
+TRAIN_CACHE_TTL = TRAIN_SCAN_INTERVAL - timedelta(seconds=5)
 BOARD_SIZE = 5
 
 # Transperth's 429 carries no Retry-After header, and its cooldown is sticky

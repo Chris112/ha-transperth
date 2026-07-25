@@ -33,6 +33,10 @@ Data flow: `aiotransperth.TransperthClient` → coordinator → entities.
   whole instance, shared by coordinators, config/options flows, and services.
   Never construct `TransperthClient` elsewhere: fresh clients re-scrape CSRF
   tokens and refetch the train catalog, and Transperth's rate limit is sticky.
+  `async_train_departures(hass, line, station)` wraps that call in a
+  per-station cache just under the poll interval, so several journeys boarding
+  at one station cost one request — `TrainCoordinator` must go through it
+  rather than calling the client directly. Failures are evicted, never served.
 - **One config entry = one place or one journey leg**, distinguished by
   `data[CONF_MODE]` (`bus`/`train`). Entry `data` is identity (stop code, or
   line + station + optional `to_station`, immutable); entry `options` is

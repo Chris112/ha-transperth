@@ -112,9 +112,11 @@ automation traces.
 
 ## Notes
 
-- Polling: buses every 2 minutes, trains every minute — one request per entry.
-  Two entries at the same station poll it separately, so a there-and-back
-  commute costs two requests a minute.
+- Polling: buses every 2 minutes, trains every minute — **one request per
+  station**, not per entry. Any number of journeys boarding at the same
+  station share a single fetch, since which way you travel is applied
+  afterwards. A there-and-back commute costs two requests a minute because
+  the two legs genuinely depart from different places.
 - On HTTP 429 the Status entity's `rate_limited` attribute goes true and
   polling backs off, doubling from the entry's own interval up to 15 minutes,
   resetting after a success. Transperth sends no `Retry-After` header and its

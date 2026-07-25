@@ -20,7 +20,7 @@ from homeassistant.helpers.update_coordinator import (
 )
 from homeassistant.util import dt as dt_util
 
-from .api import async_shared_client
+from .api import async_shared_client, async_train_departures
 from .const import (
     BUS_SCAN_INTERVAL,
     CONF_LINE,
@@ -100,8 +100,11 @@ class TrainCoordinator(_BaseCoordinator[tuple[TrainDeparture, ...]]):
         super().__init__(hass, entry, TRAIN_SCAN_INTERVAL)
 
     async def _fetch(self) -> tuple[TrainDeparture, ...]:
-        return await self.client.get_train_departures(
-            self.config_entry.data[CONF_LINE], self.config_entry.data[CONF_STATION]
+        # Shared per station, not per entry — see api.async_train_departures.
+        return await async_train_departures(
+            self.hass,
+            self.config_entry.data[CONF_LINE],
+            self.config_entry.data[CONF_STATION],
         )
 
     def departures_towards(self, target: str) -> tuple[TrainDeparture, ...]:
