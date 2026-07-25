@@ -17,7 +17,12 @@ rules:
   entity-unique-id: done
   has-entity-name: done
   runtime-data: done
-  test-before-configure: done
+  test-before-configure:
+    status: done
+    comment: >-
+      Bus stop codes are validated live. Train stations are picked from the
+      library's ordering table rather than typed, so an invalid one can't be
+      submitted and no network call is needed to prove it.
   test-before-setup: done
   unique-config-entry: done
 

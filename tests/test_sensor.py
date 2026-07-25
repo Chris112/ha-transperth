@@ -47,21 +47,46 @@ async def test_departure_board(
     }
 
 
-async def test_train_next_and_destination_sensors(
+async def test_station_entry_reports_both_directions(
     hass: HomeAssistant, mock_client: MagicMock, train_entry: MockConfigEntry
 ) -> None:
     await _setup(hass, train_entry)
-    nxt = hass.states.get("sensor.maylands_stn_midland_line_next_departure")
-    assert nxt is not None and nxt.state == "2026-07-07T00:10:00+00:00"
-    assert nxt.attributes["platform"] == "1"
-    assert nxt.attributes["cars"] == 4
-    to_perth = hass.states.get(
-        "sensor.maylands_stn_midland_line_next_train_to_perth"
+    cityward = hass.states.get(
+        "sensor.maylands_stn_midland_line_next_train_towards_perth"
     )
-    assert to_perth is not None and to_perth.state == "2026-07-07T00:10:00+00:00"
+    assert cityward is not None and cityward.state == "2026-07-07T00:10:00+00:00"
+    assert cityward.attributes["platform"] == "1"
+    assert cityward.attributes["cars"] == 4
+
+    outbound = hass.states.get(
+        "sensor.maylands_stn_midland_line_next_train_towards_midland"
+    )
+    assert outbound is not None and outbound.state == "2026-07-07T00:14:00+00:00"
+    assert outbound.attributes["destination"] == "Midland"
+
+    # No merged "next departure" sensor survives.
+    assert hass.states.get("sensor.maylands_stn_midland_line_next_departure") is None
+
     board = hass.states.get("sensor.maylands_stn_midland_line_departures")
     assert board is not None and board.state == "08:10"
-    assert board.attributes["departures"][1]["destination"] == "Midland"
+    assert len(board.attributes["departures"]) == 2
+
+
+async def test_journey_entry_filters_to_one_direction(
+    hass: HomeAssistant, mock_client: MagicMock, journey_entry: MockConfigEntry
+) -> None:
+    await _setup(hass, journey_entry)
+    nxt = hass.states.get("sensor.maylands_perth_next_train")
+    assert nxt is not None and nxt.state == "2026-07-07T00:10:00+00:00"
+    assert nxt.attributes["destination"] == "Perth"
+
+    # The 08:14 to Midland runs the other way, so the board drops it.
+    board = hass.states.get("sensor.maylands_perth_departures")
+    assert board is not None and board.state == "08:10"
+    assert [d["destination"] for d in board.attributes["departures"]] == ["Perth"]
+
+    # A journey entry names its direction on the device, not every entity.
+    assert hass.states.get("sensor.maylands_perth_next_train_towards_perth") is None
 
 
 async def test_status_sensor_reports_rate_limit(

@@ -13,9 +13,10 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import slugify
 
 from . import TransperthConfigEntry
-from .const import BOARD_SIZE, CONF_DESTINATIONS, CONF_ROUTES
+from .const import BOARD_SIZE, CONF_ROUTES
 from .coordinator import BusCoordinator, TrainCoordinator
 from .entity import TransperthEntity
+from .journey import journey_target, short_name, tracked_directions
 
 PARALLEL_UPDATES = 0
 
@@ -35,12 +36,22 @@ async def async_setup_entry(
             for route in entry.options.get(CONF_ROUTES, [])
         )
     else:
-        entities.append(TrainNextDepartureSensor(coordinator))
-        entities.append(TrainDepartureBoardSensor(coordinator))
-        entities.extend(
-            TrainDestinationSensor(coordinator, dest)
-            for dest in entry.options.get(CONF_DESTINATIONS, [])
-        )
+        target = journey_target(entry)
+        if target is not None:
+            # The device is already named "A → B", so the entity needn't be.
+            entities.append(TrainDirectionSensor(coordinator, target, "next_train"))
+            entities.append(TrainDepartureBoardSensor(coordinator, target))
+        else:
+            entities.extend(
+                TrainDirectionSensor(
+                    coordinator,
+                    endpoint,
+                    f"towards_{slugify(endpoint)}",
+                    name=f"Next train towards {short_name(endpoint)}",
+                )
+                for endpoint in tracked_directions(entry)
+            )
+            entities.append(TrainDepartureBoardSensor(coordinator))
     entities.append(StatusSensor(coordinator))
     async_add_entities(entities)
 
@@ -126,20 +137,24 @@ def _train_attrs(dep: TrainDeparture) -> dict[str, Any]:
     }
 
 
-class TrainNextDepartureSensor(TransperthEntity, SensorEntity):
+class TrainDirectionSensor(TransperthEntity, SensorEntity):
+    """The next train from here that actually reaches `target`."""
+
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
     def __init__(
         self,
         coordinator: TrainCoordinator,
-        key: str = "next_departure",
-        name: str = "Next departure",
+        target: str,
+        key: str,
+        name: str = "Next train",
     ) -> None:
         super().__init__(coordinator, key)
+        self._target = target
         self._attr_name = name
 
     def _departure(self) -> TrainDeparture | None:
-        departures = self.coordinator.data
+        departures = self.coordinator.departures_towards(self._target)
         return departures[0] if departures else None
 
     @property
@@ -153,31 +168,25 @@ class TrainNextDepartureSensor(TransperthEntity, SensorEntity):
         return _train_attrs(dep) if dep else None
 
 
-class TrainDestinationSensor(TrainNextDepartureSensor):
-    def __init__(self, coordinator: TrainCoordinator, destination: str) -> None:
-        super().__init__(
-            coordinator,
-            f"dest_{slugify(destination)}_next",
-            f"Next train to {destination}",
-        )
-        self._destination = destination
-
-    def _departure(self) -> TrainDeparture | None:
-        for dep in self.coordinator.data:
-            if dep.destination == self._destination:
-                return dep
-        return None
-
-
 class TrainDepartureBoardSensor(TransperthEntity, SensorEntity):
+    """Upcoming trains — filtered to the journey when the entry has one."""
+
     _attr_name = "Departures"
 
-    def __init__(self, coordinator: TrainCoordinator) -> None:
+    def __init__(
+        self, coordinator: TrainCoordinator, target: str | None = None
+    ) -> None:
         super().__init__(coordinator, "departures")
+        self._target = target
+
+    def _departures(self) -> tuple[TrainDeparture, ...]:
+        if self._target is None:
+            return self.coordinator.data
+        return self.coordinator.departures_towards(self._target)
 
     @property
     def native_value(self) -> str | None:
-        departures = self.coordinator.data
+        departures = self._departures()
         if not departures:
             return None
         dep = departures[0]
@@ -194,7 +203,7 @@ class TrainDepartureBoardSensor(TransperthEntity, SensorEntity):
                     "delay_minutes": dep.delay_minutes,
                     "is_live": dep.live.is_live,
                 }
-                for dep in self.coordinator.data[:BOARD_SIZE]
+                for dep in self._departures()[:BOARD_SIZE]
             ]
         }
 

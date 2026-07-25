@@ -10,6 +10,8 @@ from aiotransperth import (
     RateLimitError,
     Stop,
     TransperthError,
+    known_lines,
+    line_stations,
 )
 from homeassistant.config_entries import (
     ConfigEntry,
@@ -29,31 +31,30 @@ from homeassistant.util import slugify
 
 from .api import async_shared_client
 from .const import (
-    CONF_DESTINATIONS,
     CONF_LINE,
     CONF_MODE,
     CONF_ROUTES,
     CONF_STATION,
     CONF_STOP_CODE,
     CONF_STOP_NAME,
+    CONF_TO_STATION,
     CONF_WALK_MINUTES,
     DOMAIN,
     MODE_BUS,
     MODE_TRAIN,
 )
+from .journey import journey_target, short_name
 
 
 class TransperthConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Add a bus stop or train station."""
+    """Add a bus stop or train journey."""
 
-    VERSION = 1
+    VERSION = 2
 
     def __init__(self) -> None:
         self._stop: Stop | None = None
         self._routes: list[str] = []
         self._line: str | None = None
-        self._station: str | None = None
-        self._destinations: list[str] = []
 
     @staticmethod
     @callback
@@ -125,72 +126,74 @@ class TransperthConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_train(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        errors: dict[str, str] = {}
-        client = async_shared_client(self.hass)
+        """Pick the line, so the next step can offer only its stations."""
+        lines = known_lines()
+        if not lines:
+            # An aiotransperth build whose ordering table was never generated;
+            # an empty dropdown would be a baffling way to say so.
+            return self.async_abort(reason="no_line_data")
         if user_input is not None:
             self._line = user_input[CONF_LINE]
-            self._station = user_input[CONF_STATION]
-            await self.async_set_unique_id(
-                f"train_{slugify(self._line)}_{slugify(self._station)}"
-            )
-            self._abort_if_unique_id_configured()
-            try:
-                departures = await client.get_train_departures(
-                    self._line, self._station
-                )
-            except InvalidStopError:
-                errors["base"] = "invalid_station"
-            except RateLimitError:
-                errors["base"] = "rate_limited"
-            except TransperthError:
-                errors["base"] = "cannot_connect"
-            else:
-                self._destinations = sorted({d.destination for d in departures})
-                if not self._destinations:
-                    errors["base"] = "no_trains_running"
-                else:
-                    return await self.async_step_train_tracking()
-        try:
-            lines = await client.get_train_lines()
-            stations = await client.get_train_stations()
-        except TransperthError:
-            return self.async_abort(reason="cannot_connect")
+            return await self.async_step_train_journey()
         schema = vol.Schema(
             {
                 vol.Required(CONF_LINE): SelectSelector(
                     SelectSelectorConfig(options=list(lines))
-                ),
-                vol.Required(CONF_STATION): SelectSelector(
-                    SelectSelectorConfig(options=[s.name for s in stations])
-                ),
-            }
-        )
-        return self.async_show_form(step_id="train", data_schema=schema, errors=errors)
-
-    async def async_step_train_tracking(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        assert self._line is not None and self._station is not None
-        if user_input is not None:
-            return self.async_create_entry(
-                title=f"{self._station} ({self._line})",
-                data={
-                    CONF_MODE: MODE_TRAIN,
-                    CONF_LINE: self._line,
-                    CONF_STATION: self._station,
-                },
-                options={
-                    CONF_DESTINATIONS: user_input.get(CONF_DESTINATIONS, []),
-                },
-            )
-        schema = vol.Schema(
-            {
-                vol.Optional(CONF_DESTINATIONS, default=[]): SelectSelector(
-                    SelectSelectorConfig(options=self._destinations, multiple=True)
                 )
             }
         )
-        return self.async_show_form(step_id="train_tracking", data_schema=schema)
+        return self.async_show_form(step_id="train", data_schema=schema)
+
+    async def async_step_train_journey(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pick where you board and, optionally, where you're heading.
+
+        Both dropdowns come from the offline ordering table in route order, so
+        this step needs no network and can't fail because nothing is running.
+        """
+        assert self._line is not None
+        errors: dict[str, str] = {}
+        stations = line_stations(self._line)
+
+        if user_input is not None:
+            station = user_input[CONF_STATION]
+            target = user_input.get(CONF_TO_STATION) or None
+            if target == station:
+                errors[CONF_TO_STATION] = "same_station"
+            else:
+                data = {
+                    CONF_MODE: MODE_TRAIN,
+                    CONF_LINE: self._line,
+                    CONF_STATION: station,
+                }
+                unique_id = f"train_{slugify(self._line)}_{slugify(station)}"
+                title = f"{station} ({self._line})"
+                if target is not None:
+                    data[CONF_TO_STATION] = target
+                    unique_id = f"{unique_id}_{slugify(target)}"
+                    title = f"{short_name(station)} → {short_name(target)}"
+                await self.async_set_unique_id(unique_id)
+                self._abort_if_unique_id_configured()
+                return self.async_create_entry(
+                    title=title,
+                    data=data,
+                    options={CONF_WALK_MINUTES: 0},
+                )
+
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_STATION): SelectSelector(
+                    SelectSelectorConfig(options=list(stations))
+                ),
+                vol.Optional(CONF_TO_STATION): SelectSelector(
+                    SelectSelectorConfig(options=list(stations))
+                ),
+            }
+        )
+        return self.async_show_form(
+            step_id="train_journey", data_schema=schema, errors=errors
+        )
 
 
 class TransperthOptionsFlow(OptionsFlow):
@@ -239,25 +242,25 @@ class TransperthOptionsFlow(OptionsFlow):
     async def async_step_train(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        # Which way you travel is identity, not preference, so it lives in the
+        # entry data and isn't editable here. An entry without a destination
+        # reports both directions and has nothing left to configure.
+        if journey_target(self.config_entry) is None:
+            return self.async_abort(reason="no_options")
         if user_input is not None:
             return self.async_create_entry(
-                data={CONF_DESTINATIONS: user_input.get(CONF_DESTINATIONS, [])}
+                data={
+                    CONF_WALK_MINUTES: int(user_input.get(CONF_WALK_MINUTES, 0)),
+                }
             )
         current = self.config_entry.options
-        try:
-            departures = await async_shared_client(self.hass).get_train_departures(
-                self.config_entry.data[CONF_LINE],
-                self.config_entry.data[CONF_STATION],
-            )
-            observed = {d.destination for d in departures}
-        except TransperthError:
-            observed = set()
-        options = sorted(observed | set(current.get(CONF_DESTINATIONS, [])))
         schema = vol.Schema(
             {
                 vol.Optional(
-                    CONF_DESTINATIONS, default=current.get(CONF_DESTINATIONS, [])
-                ): SelectSelector(SelectSelectorConfig(options=options, multiple=True))
+                    CONF_WALK_MINUTES, default=current.get(CONF_WALK_MINUTES, 0)
+                ): NumberSelector(
+                    NumberSelectorConfig(min=0, max=60, mode=NumberSelectorMode.BOX)
+                )
             }
         )
         return self.async_show_form(step_id="train", data_schema=schema)

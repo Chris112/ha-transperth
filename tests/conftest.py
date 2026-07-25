@@ -19,13 +19,13 @@ from aiotransperth import (
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.transperth.const import (
-    CONF_DESTINATIONS,
     CONF_LINE,
     CONF_MODE,
     CONF_ROUTES,
     CONF_STATION,
     CONF_STOP_CODE,
     CONF_STOP_NAME,
+    CONF_TO_STATION,
     CONF_WALK_MINUTES,
     DOMAIN,
     MODE_BUS,
@@ -141,10 +141,37 @@ STATIONS = (
     TrainStation(id="1", name="Perth Stn"),
 )
 
+# Stands in for aiotransperth's generated table so tests don't depend on the
+# real network's shape. Index 0 is the city end; Maylands sits in the middle,
+# so it has trains both ways. Note the canned departures say "Perth" and
+# "Midland" while the table says "Perth Stn" and "Midland Stn" — exactly the
+# suffix mismatch the real API produces.
+LINE_ORDER = {
+    "Midland Line": (
+        "Perth Stn",
+        "Mt Lawley Stn",
+        "Maylands Stn",
+        "Bayswater Stn",
+        "Midland Stn",
+    ),
+    "Fremantle Line": (
+        "Perth Stn",
+        "West Leederville Stn",
+        "Claremont Stn",
+        "Fremantle Stn",
+    ),
+}
+
 
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
     """Allow loading custom_components in tests."""
+
+
+@pytest.fixture(autouse=True)
+def line_order(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the station-ordering table; direction logic reads it at call time."""
+    monkeypatch.setattr("aiotransperth.lines.LINE_STATIONS", LINE_ORDER)
 
 
 @pytest.fixture
@@ -181,14 +208,51 @@ def bus_entry() -> MockConfigEntry:
 
 @pytest.fixture
 def train_entry() -> MockConfigEntry:
+    """A whole-station entry: no destination, so it reports both directions."""
     return MockConfigEntry(
         domain=DOMAIN,
         unique_id="train_midland_line_maylands_stn",
         title="Maylands Stn (Midland Line)",
+        version=2,
         data={
             CONF_MODE: MODE_TRAIN,
             CONF_LINE: "Midland Line",
             CONF_STATION: "Maylands Stn",
         },
-        options={CONF_DESTINATIONS: ["Perth"]},
+        options={},
+    )
+
+
+@pytest.fixture
+def journey_entry() -> MockConfigEntry:
+    """A commute: Maylands to the city, so only city-bound trains count."""
+    return MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="train_midland_line_maylands_stn_perth_stn",
+        title="Maylands → Perth",
+        version=2,
+        data={
+            CONF_MODE: MODE_TRAIN,
+            CONF_LINE: "Midland Line",
+            CONF_STATION: "Maylands Stn",
+            CONF_TO_STATION: "Perth Stn",
+        },
+        options={CONF_WALK_MINUTES: 5},
+    )
+
+
+@pytest.fixture
+def legacy_train_entry() -> MockConfigEntry:
+    """A version 1 entry, still carrying the dropped destinations option."""
+    return MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="train_midland_line_maylands_stn",
+        title="Maylands Stn (Midland Line)",
+        version=1,
+        data={
+            CONF_MODE: MODE_TRAIN,
+            CONF_LINE: "Midland Line",
+            CONF_STATION: "Maylands Stn",
+        },
+        options={"destinations": ["Perth"]},
     )

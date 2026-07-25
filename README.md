@@ -23,13 +23,29 @@ Pick **Bus stop** or **Train station**:
 - **Bus stop** — enter the stop code (the number on the stop sign). The stop
   is validated live and its name confirmed. Then optionally tick routes to
   track and set your walk time to the stop.
-- **Train station** — pick the line and station from dropdowns, then tick the
-  destination(s) you care about from what's currently running (e.g. "Perth"
-  for city-bound). No typing, no guessing. If no trains are running, configure
-  again while services are active.
+- **Train station** — pick the line, then the station you board at and,
+  optionally, **where you travel to**. Both dropdowns are offline and in route
+  order, so setup works at 3am with nothing running.
 
-Change tracked routes/destinations or walk time any time via **Configure** on
-the integration entry.
+### Trains are journeys, not stations
+
+A station like Edgewater has trains going both ways, and "the next train" in
+either direction is rarely what you want. So a train entry is a *journey leg*:
+
+```
+Edgewater Stn → Perth Stn      only city-bound trains
+Perth Stn → Edgewater Stn      the trip home, as a second entry
+```
+
+Only services that actually reach your destination count. A Clarkson
+short-working shows up if you're going to Joondalup and is filtered out if
+you're going to Butler.
+
+Leave **Travelling to** empty and you get a plain station entry instead, with
+one sensor per direction — useful for a departure-board dashboard.
+
+Change your walk time any time via **Configure**. Which way you travel is part
+of the entry's identity, so add a second entry for the return trip.
 
 ## Entities
 
@@ -37,10 +53,12 @@ Each configured place becomes a device with:
 
 | Entity | Type | Notes |
 |---|---|---|
-| Next departure | timestamp sensor | Dashboards render it as "in 7 minutes" natively. Attributes: route/destination, platform & cars (trains), `delay_minutes`, `is_live`. |
-| Departures | sensor | Next 5 departures as a list attribute for board cards. |
-| Next *route* / Next train to *destination* | timestamp sensor | One per tracked route/destination. |
-| Time to leave for the *route* | binary sensor (bus only) | On when `now ≥ departure − walk time`, using the **live** estimate — a bus running 3 minutes late delays the nudge by 3 minutes. Flips punctually, not on the next poll. |
+| Next train | timestamp sensor | Journey entries. Dashboards render it as "in 7 minutes" natively. Attributes: destination, platform, cars, `delay_minutes`, `is_live`. |
+| Next train towards *terminus* | timestamp sensor | Station entries — one per direction. |
+| Next departure | timestamp sensor | Bus entries. |
+| Departures | sensor | Next 5 departures as a list attribute for board cards; filtered to your direction on a journey entry. |
+| Next *route* | timestamp sensor | One per tracked bus route. |
+| Time to leave | binary sensor | On when `now ≥ departure − walk time`, using the **live** estimate — a train running 3 minutes late delays the nudge by 3 minutes. Flips punctually, not on the next poll. Bus entries get one per tracked route; train entries get one once they name a destination. |
 | Status | diagnostic sensor | Last successful update; `rate_limited` attribute. |
 
 Timestamps use the live estimate when a vehicle is tracked, otherwise the
@@ -85,13 +103,30 @@ automation traces.
 
 ## Notes
 
-- Polling: buses every 2 minutes, trains every minute — one request per
-  configured place. Transperth rate limits (HTTP 429) surface on the Status
-  entity and back off automatically.
+- Polling: buses every 2 minutes, trains every minute — one request per entry.
+  Two entries at the same station poll it separately, so a there-and-back
+  commute costs two requests a minute.
+- On HTTP 429 the Status entity's `rate_limited` attribute goes true and
+  polling backs off, doubling from the entry's own interval up to 15 minutes,
+  resetting after a success. Transperth sends no `Retry-After` header and its
+  cooldown is sticky and shared with their public website, so polling straight
+  through a rate limit only prolongs it.
 - Data comes from Transperth's unofficial website APIs (there is no official
   realtime feed). It can break without notice; entities go unavailable and
   recover on their own.
-- Assumes your Home Assistant server runs in `Australia/Perth`.
+- Every time the integration handles is `Australia/Perth`-aware regardless of
+  your server's timezone, so the departure-board `HH:MM` strings are always
+  Perth local time — which is what you want, but will differ from the rest of
+  your dashboard if Home Assistant is set to another zone.
+
+## Upgrading from 0.1.x
+
+Existing train entries keep working and become station entries, reporting both
+directions. Their per-destination sensors are replaced by per-direction ones,
+so `sensor.…_next_departure` and `sensor.…_next_train_to_perth` give way to
+`sensor.…_next_train_towards_perth` — update any automations referencing them.
+
+To get the journey behaviour, add a new entry and set **Travelling to**.
 
 ## Removal
 

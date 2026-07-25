@@ -22,29 +22,30 @@
         }
       },
       "train": {
-        "title": "Train station",
+        "title": "Train line",
         "data": {
-          "line": "Line",
-          "station": "Station"
+          "line": "Line"
         }
       },
-      "train_tracking": {
-        "title": "Track destinations from this station",
+      "train_journey": {
+        "title": "Where do you travel?",
+        "description": "Leave the destination empty to track both directions from the station instead.",
         "data": {
-          "destinations": "Destinations to track (optional)"
+          "station": "Station you board at",
+          "to_station": "Travelling to (optional)"
         }
       }
     },
     "error": {
       "invalid_stop": "Transperth doesn't recognise that stop code.",
-      "invalid_station": "Transperth doesn't recognise that station.",
       "cannot_connect": "Could not reach Transperth.",
       "rate_limited": "Transperth is rate limiting — wait a few minutes.",
-      "no_trains_running": "No trains are currently running on this line — try again while services are active."
+      "same_station": "Pick a destination different from where you board."
     },
     "abort": {
       "already_configured": "This place is already configured.",
-      "cannot_connect": "Could not reach Transperth."
+      "cannot_connect": "Could not reach Transperth.",
+      "no_line_data": "This build of aiotransperth has no train line data, so stations can't be offered. Report this at the integration's issue tracker."
     }
   },
   "options": {
@@ -57,11 +58,14 @@
         }
       },
       "train": {
-        "title": "Track destinations from this station",
+        "title": "Journey settings",
         "data": {
-          "destinations": "Destinations to track"
+          "walk_minutes": "Walk time to the station (minutes)"
         }
       }
+    },
+    "abort": {
+      "no_options": "This entry tracks both directions from the station and has nothing to configure. To follow a particular journey, add a station and set where you travel to."
     }
   }
 }

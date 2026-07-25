@@ -29,7 +29,9 @@ Where this project is and what's left, in order. Companion library:
 
 - [ ] Add `https://github.com/Chris112/ha-transperth` as a HACS custom
       repository, install, restart HA.
-- [ ] Add a train entry: Midland Line → Maylands Stn → track "Perth".
+- [ ] Regenerate `aiotransperth`'s line ordering table and release it — the
+      integration pins it and trains can't be configured without it.
+- [ ] Add a train journey: Yanchep Line → Edgewater Stn → Perth Underground.
 - [ ] Add a bus entry (stop 12627) to exercise the bus path + time-to-leave.
 - [ ] Watch a real morning: do the countdown, delay attributes, and
       time-to-leave flip behave? Does the Status entity stay clean?
@@ -66,9 +68,9 @@ Where this project is and what's left, in order. Companion library:
       interchange stations (probe the URL variant first).
 - [ ] **Adaptive polling** — tighten the bus interval only in the final
       minutes before a tracked departure; laziest possible otherwise.
-- [ ] **Train lead-time option** — optional drive/walk lead minutes +
-      time-to-leave binary sensor for train entries (dropped from v1
-      deliberately).
+- [x] **Train lead-time option** — walk minutes + time-to-leave binary sensor
+      for train entries. Landed with direction-aware journeys, which is what
+      made it meaningful: a lead time needs a direction to count down to.
 - [ ] **Ferries** — models carry `mode` already; needs API exploration.
 - [ ] **Busy-interchange depth** — verify how many trips the bus endpoint
       returns at high-frequency stops (self-cap behaviour beyond ~13).

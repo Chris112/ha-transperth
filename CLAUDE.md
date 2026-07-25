@@ -33,11 +33,18 @@ Data flow: `aiotransperth.TransperthClient` → coordinator → entities.
   whole instance, shared by coordinators, config/options flows, and services.
   Never construct `TransperthClient` elsewhere: fresh clients re-scrape CSRF
   tokens and refetch the train catalog, and Transperth's rate limit is sticky.
-- **One config entry = one place** (bus stop or train station), distinguished by
-  `data[CONF_MODE]` (`bus`/`train`). Entry `data` is identity (stop code / line +
-  station, immutable); entry `options` is tracking preferences (routes or
-  destinations, walk minutes). Options changes trigger a full entry reload
-  (`__init__.py` update listener).
+- **One config entry = one place or one journey leg**, distinguished by
+  `data[CONF_MODE]` (`bus`/`train`). Entry `data` is identity (stop code, or
+  line + station + optional `to_station`, immutable); entry `options` is
+  preferences (routes, walk minutes). Options changes trigger a full entry
+  reload (`__init__.py` update listener).
+- **Train direction comes from `to_station`.** With one set, the entry is a
+  journey (Edgewater → Perth) and every sensor is filtered to services that
+  actually reach the target — `TrainCoordinator.departures_towards`, which
+  defers to `aiotransperth.serves_journey`. Without one, the entry reports
+  both ways with a sensor per line end. `journey.py` is the single place that
+  decides which mode an entry is in; don't re-derive it from `data`.
+  Direction knowledge (station order per line) lives in the library, not here.
 - **`coordinator.py`**: `BusCoordinator` (2 min poll) and `TrainCoordinator`
   (1 min poll) share `_BaseCoordinator`, which owns the client and the
   `rate_limited`/`last_success` bookkeeping surfaced by the diagnostic
@@ -56,10 +63,13 @@ Data flow: `aiotransperth.TransperthClient` → coordinator → entities.
   (available without any entry), all `SupportsResponse.ONLY`. Error mapping
   convention: user-input problems → `ServiceValidationError`, upstream failures →
   `HomeAssistantError`.
-- **`config_flow.py`**: menu → bus (validate stop code live) or train (dropdowns
-  from live API) → second step picking tracked routes/destinations from what's
-  currently observed. Options flow re-fetches live data and unions it with the
-  currently saved selection so existing choices survive quiet periods.
+- **`config_flow.py`**: menu → bus (validate stop code live, then pick routes
+  from what's observed) or train (pick line, then station + optional
+  destination). The train branch makes **no network calls at all** — its
+  dropdowns come from the library's offline ordering table in route order, so
+  setup can't fail at night or when the API is down. Bus options flow
+  re-fetches live data and unions it with the saved selection so existing
+  choices survive quiet periods.
 
 All times are `Australia/Perth`-aware (`PERTH_TZ` from aiotransperth).
 
