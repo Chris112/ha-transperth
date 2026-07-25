@@ -1,0 +1,51 @@
+name: Release
+
+# HACS takes the version it shows users from the release tag, while Home
+# Assistant reads manifest.json — so the two can drift silently. And HA
+# installs the pinned aiotransperth at setup time: if that version isn't on
+# PyPI, the integration appears in the add-integration list but its config
+# flow fails to load, which is a baffling way to find out.
+#
+# Both are checked here, against the tag, before anyone downloads it.
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Tag matches manifest version
+        run: |
+          manifest=$(python -c \
+            "import json; print(json.load(open('custom_components/transperth/manifest.json'))['version'])")
+          tag="${GITHUB_REF_NAME#v}"
+          echo "tag=$tag manifest=$manifest"
+          if [ "$tag" != "$manifest" ]; then
+            echo "::error::Release tag $GITHUB_REF_NAME does not match manifest.json version $manifest"
+            exit 1
+          fi
+
+      - name: Pinned requirements install from PyPI
+        run: |
+          python - <<'PY' > /tmp/reqs.txt
+          import json
+          manifest = json.load(open("custom_components/transperth/manifest.json"))
+          print("\n".join(manifest["requirements"]))
+          PY
+          cat /tmp/reqs.txt
+          # Home Assistant resolves these at setup; if pip can't, neither can it.
+          pip download --no-deps --dest /tmp/wheels -r /tmp/reqs.txt
+
+      - uses: home-assistant/actions/hassfest@master
+      - uses: hacs/action@main
+        with:
+          category: integration
+          # Remove once the home-assistant/brands PR is merged (ROADMAP Phase 3).
+          ignore: brands

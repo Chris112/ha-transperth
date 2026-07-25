@@ -23,7 +23,10 @@ Where this project is and what's left, in order. Companion library:
       so HA can't install requirements until this exists. *(Live on PyPI
       2026-07-07; aiotransperth repo is now public.)*
 - [x] Confirm CI green on both repos.
-- [ ] Tag/release `ha-transperth` **v0.1.0** (HACS installs from releases).
+- [x] Tag/release `ha-transperth` **v0.2.0**. HACS reads the version from the
+      release tag, so `release.yml` fails the release if that disagrees with
+      `manifest.json`, or if the pinned `aiotransperth` isn't installable from
+      PyPI — the latter presents as a config flow that won't load.
 
 ## Phase 2 — Real-world validation (own install)
 
