@@ -1,9 +1,10 @@
 # Transperth for Home Assistant
 
 Live Perth (Western Australia) bus and train departures as native Home
-Assistant entities — **with realtime delay data**. Add a bus stop or train
-station through the UI, get auto-updating sensors and a delay-aware
-"time to leave" alert. Zero YAML.
+Assistant entities — **with realtime delay data**. Add your actual commute
+through the UI — *Edgewater → Perth*, not just "Edgewater" — and get
+auto-updating sensors that ignore the trains going the other way, plus a
+delay-aware "time to leave" alert. Zero YAML.
 
 Built on [`aiotransperth`](https://github.com/Chris112/aiotransperth).
 Successor to the PyScript-based
@@ -13,8 +14,16 @@ Successor to the PyScript-based
 
 1. In HACS: **⋮ → Custom repositories** → add
    `https://github.com/Chris112/ha-transperth` as an **Integration**.
-2. Install **Transperth**, restart Home Assistant.
-3. **Settings → Devices & Services → Add Integration → Transperth.**
+2. Download **Transperth**, then restart Home Assistant.
+3. **Settings → Devices & Services → `+ ADD INTEGRATION`** (bottom right) →
+   search **Transperth**.
+
+Step 3 is easy to miss: downloading in HACS only copies the files, it doesn't
+configure anything, and no setup dialog appears on its own. If Transperth
+isn't in the search list after restarting, hard-refresh your browser
+(`Ctrl+Shift+R`) — Home Assistant caches that list.
+
+Repeat step 3 for each stop or journey you want.
 
 ## Setup
 
