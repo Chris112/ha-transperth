@@ -36,7 +36,12 @@ Data flow: `aiotransperth.TransperthClient` → coordinator → entities.
   `async_train_departures(hass, line, station)` wraps that call in a
   per-station cache just under the poll interval, so several journeys boarding
   at one station cost one request — `TrainCoordinator` must go through it
-  rather than calling the client directly. Failures are evicted, never served.
+  rather than calling the client directly. It returns a `TrainFetch` carrying
+  when Transperth was actually reached, which is what `last_success` reports.
+  One caller giving up never cancels the shared request; cancelled and failed
+  fetches are never served, but a 429 is — deliberately, since re-asking on
+  another entry's behalf only feeds a sticky cooldown.
+  `async_forget_train_departures` runs on unload, so a reload refetches.
 - **One config entry = one place or one journey leg**, distinguished by
   `data[CONF_MODE]` (`bus`/`train`). Entry `data` is identity (stop code, or
   line + station + optional `to_station`, immutable); entry `options` is

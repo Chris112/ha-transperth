@@ -47,13 +47,16 @@ class _BaseCoordinator[T](DataUpdateCoordinator[T]):
             name=entry.title,
             update_interval=interval,
         )
-        self.client = async_shared_client(hass)
         self.rate_limited = False
         self.last_success: datetime | None = None
         self._backoff: timedelta | None = None
 
     async def _fetch(self) -> T:
         raise NotImplementedError
+
+    def _success_time(self) -> datetime | None:
+        """When the data `_fetch` just returned came from Transperth."""
+        return dt_util.utcnow()
 
     def _next_backoff(self) -> timedelta:
         """Double the wait each consecutive 429, starting from our interval."""
@@ -81,13 +84,14 @@ class _BaseCoordinator[T](DataUpdateCoordinator[T]):
             raise UpdateFailed(f"Transperth error: {err}") from err
         self.rate_limited = False
         self._backoff = None
-        self.last_success = dt_util.utcnow()
+        self.last_success = self._success_time()
         return data
 
 
 class BusCoordinator(_BaseCoordinator[StopTimetable]):
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         super().__init__(hass, entry, BUS_SCAN_INTERVAL)
+        self.client = async_shared_client(hass)
 
     async def _fetch(self) -> StopTimetable:
         return await self.client.get_stop_timetable(
@@ -98,14 +102,21 @@ class BusCoordinator(_BaseCoordinator[StopTimetable]):
 class TrainCoordinator(_BaseCoordinator[tuple[TrainDeparture, ...]]):
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         super().__init__(hass, entry, TRAIN_SCAN_INTERVAL)
+        self._fetched_at: datetime | None = None
 
     async def _fetch(self) -> tuple[TrainDeparture, ...]:
         # Shared per station, not per entry — see api.async_train_departures.
-        return await async_train_departures(
+        self._fetched_at, departures = await async_train_departures(
             self.hass,
             self.config_entry.data[CONF_LINE],
             self.config_entry.data[CONF_STATION],
         )
+        return departures
+
+    def _success_time(self) -> datetime | None:
+        # A shared fetch can be most of a cycle old, and Status exists to say
+        # how fresh the departures are, so report the request's own time.
+        return self._fetched_at
 
     def departures_towards(self, target: str) -> tuple[TrainDeparture, ...]:
         """Departures that actually carry you to `target`, soonest first.

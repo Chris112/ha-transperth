@@ -242,6 +242,24 @@ def journey_entry() -> MockConfigEntry:
 
 
 @pytest.fixture
+def return_leg_entry() -> MockConfigEntry:
+    """The trip home: same line, but boarding at the other end."""
+    return MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="train_midland_line_perth_stn_maylands_stn",
+        title="Perth → Maylands",
+        version=2,
+        data={
+            CONF_MODE: MODE_TRAIN,
+            CONF_LINE: "Midland Line",
+            CONF_STATION: "Perth Stn",
+            CONF_TO_STATION: "Maylands Stn",
+        },
+        options={},
+    )
+
+
+@pytest.fixture
 def legacy_train_entry() -> MockConfigEntry:
     """A version 1 entry, still carrying the dropped destinations option."""
     return MockConfigEntry(

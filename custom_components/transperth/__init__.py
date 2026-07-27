@@ -8,7 +8,16 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
-from .const import CONF_DESTINATIONS, CONF_MODE, DOMAIN, LOGGER, MODE_BUS
+from .api import async_forget_train_departures
+from .const import (
+    CONF_DESTINATIONS,
+    CONF_LINE,
+    CONF_MODE,
+    CONF_STATION,
+    DOMAIN,
+    LOGGER,
+    MODE_BUS,
+)
 from .coordinator import BusCoordinator, TrainCoordinator, TransperthCoordinator
 from .services import async_setup_services
 
@@ -59,4 +68,9 @@ async def _async_options_updated(
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: TransperthConfigEntry) -> bool:
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unloaded and entry.data[CONF_MODE] != MODE_BUS:
+        async_forget_train_departures(
+            hass, entry.data[CONF_LINE], entry.data[CONF_STATION]
+        )
+    return unloaded

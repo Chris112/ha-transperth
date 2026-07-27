@@ -6,15 +6,8 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.transperth.const import (
-    CONF_LINE,
-    CONF_MODE,
-    CONF_STATION,
-    CONF_TO_STATION,
-    DOMAIN,
-    MODE_TRAIN,
-    TRAIN_CACHE_TTL,
-)
+from custom_components.transperth.api import DATA_TRAIN_CACHE
+from custom_components.transperth.const import TRAIN_CACHE_TTL
 
 
 async def _setup(hass: HomeAssistant, entry: MockConfigEntry) -> None:
@@ -76,27 +69,15 @@ async def test_a_different_station_is_fetched_separately(
     hass: HomeAssistant,
     mock_client: MagicMock,
     journey_entry: MockConfigEntry,
+    return_leg_entry: MockConfigEntry,
 ) -> None:
-    return_leg = MockConfigEntry(
-        domain=DOMAIN,
-        unique_id="train_midland_line_perth_stn_maylands_stn",
-        title="Perth → Maylands",
-        version=2,
-        data={
-            CONF_MODE: MODE_TRAIN,
-            CONF_LINE: "Midland Line",
-            CONF_STATION: "Perth Stn",
-            CONF_TO_STATION: "Maylands Stn",
-        },
-        options={},
-    )
     await _setup(hass, journey_entry)
-    await _setup(hass, return_leg)
+    await _setup(hass, return_leg_entry)
     # The trip home departs somewhere else, so it genuinely needs its own.
     assert mock_client.get_train_departures.call_count == 2
 
 
-async def test_a_failed_fetch_is_not_served_to_the_next_poll(
+async def test_a_transient_failure_is_not_served_to_the_next_poll(
     hass: HomeAssistant,
     mock_client: MagicMock,
     journey_entry: MockConfigEntry,
@@ -106,7 +87,7 @@ async def test_a_failed_fetch_is_not_served_to_the_next_poll(
     coordinator = journey_entry.runtime_data
 
     freezer.tick(TRAIN_CACHE_TTL + timedelta(seconds=1))
-    mock_client.get_train_departures.side_effect = RateLimitError("429")
+    mock_client.get_train_departures.side_effect = TransperthError("bad payload")
     await coordinator.async_refresh()
     assert not coordinator.last_update_success
 
@@ -115,6 +96,44 @@ async def test_a_failed_fetch_is_not_served_to_the_next_poll(
     mock_client.get_train_departures.side_effect = None
     await coordinator.async_refresh()
     assert coordinator.last_update_success
+
+
+async def test_shared_entries_agree_on_when_transperth_was_contacted(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    journey_entry: MockConfigEntry,
+    train_entry: MockConfigEntry,
+    freezer,
+) -> None:
+    # The Status entity exists to answer "how fresh is this?". Two entries
+    # showing byte-identical departures must not disagree about it.
+    await _setup(hass, journey_entry)
+    freezer.tick(timedelta(seconds=30))
+    await _setup(hass, train_entry)
+
+    assert (
+        train_entry.runtime_data.last_success == journey_entry.runtime_data.last_success
+    )
+
+
+async def test_unloading_a_train_entry_forgets_its_shared_fetch(
+    hass: HomeAssistant, mock_client: MagicMock, journey_entry: MockConfigEntry
+) -> None:
+    await _setup(hass, journey_entry)
+    assert await hass.config_entries.async_unload(journey_entry.entry_id)
+    assert not hass.data.get(DATA_TRAIN_CACHE)
+
+
+async def test_reloading_an_entry_refetches_rather_than_replaying(
+    hass: HomeAssistant, mock_client: MagicMock, journey_entry: MockConfigEntry
+) -> None:
+    # Reloading is what you do when the board looks wrong; handing back the
+    # same cached departures is the one answer that helps nobody.
+    await _setup(hass, journey_entry)
+    await hass.config_entries.async_reload(journey_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert mock_client.get_train_departures.call_count == 2
 
 
 async def test_rate_limit_marks_coordinator(

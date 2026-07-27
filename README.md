@@ -68,7 +68,7 @@ Each configured place becomes a device with:
 | Departures | sensor | Next 5 departures as a list attribute for board cards; filtered to your direction on a journey entry. |
 | Next *route* | timestamp sensor | One per tracked bus route. |
 | Time to leave | binary sensor | On when `now ≥ departure − walk time`, using the **live** estimate — a train running 3 minutes late delays the nudge by 3 minutes. Flips punctually, not on the next poll. Bus entries get one per tracked route; train entries get one once they name a destination. |
-| Status | diagnostic sensor | Last successful update; `rate_limited` attribute. |
+| Status | diagnostic sensor | When Transperth was last reached for this data — entries sharing a station agree, even though they poll separately. `rate_limited` attribute. |
 
 Timestamps use the live estimate when a vehicle is tracked, otherwise the
 schedule. Trains are always live; buses light up when the vehicle is on the
@@ -113,15 +113,18 @@ automation traces.
 ## Notes
 
 - Polling: buses every 2 minutes, trains every minute — **one request per
-  station**, not per entry. Any number of journeys boarding at the same
+  station**, not per entry. Any number of train journeys boarding at the same
   station share a single fetch, since which way you travel is applied
   afterwards. A there-and-back commute costs two requests a minute because
-  the two legs genuinely depart from different places.
+  the two legs genuinely depart from different places. The services below sit
+  outside this and always fetch live, so a fast automation loop calling one
+  adds requests of its own. Reloading an entry always refetches.
 - On HTTP 429 the Status entity's `rate_limited` attribute goes true and
   polling backs off, doubling from the entry's own interval up to 15 minutes,
   resetting after a success. Transperth sends no `Retry-After` header and its
   cooldown is sticky and shared with their public website, so polling straight
-  through a rate limit only prolongs it.
+  through a rate limit only prolongs it — which is why every train entry at a
+  station shares the one rejection rather than each asking again.
 - Data comes from Transperth's unofficial website APIs (there is no official
   realtime feed). It can break without notice; entities go unavailable and
   recover on their own.
